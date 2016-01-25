@@ -38,6 +38,8 @@ __author__ = "mferguson@willowgarage.com (Michael Ferguson)"
 import rospy
 from rosserial_python import SerialClient, RosSerialServer
 import multiprocessing
+import socket
+
 
 import sys
    
@@ -50,31 +52,39 @@ if __name__=="__main__":
     baud = int(rospy.get_param('~baud','57600'))
 
     # TODO: should these really be global?
-    tcp_portnum = int(rospy.get_param('/rosserial_embeddedlinux/tcp_port', '11411'))
+    #tcp_portnum = int(rospy.get_param('/rosserial_embeddedlinux/tcp_port', '11411'))
+    tcp_portnum = int(rospy.get_param('~tcp_port', '11411'))
+    tcp_serv = rospy.get_param('~tcp_serv', 'localhost')
     fork_server = rospy.get_param('/rosserial_embeddedlinux/fork_server', False)
 
-    # TODO: do we really want command line params in addition to parameter server params?
+    '''# TODO: do we really want command line params in addition to parameter server params?
     sys.argv = rospy.myargv(argv=sys.argv)
     if len(sys.argv) == 2 :
         port_name  = sys.argv[1]
     if len(sys.argv) == 3 :
+        port_name  = sys.argv[1]
         tcp_portnum = int(sys.argv[2])
-    
-    if port_name == "tcp" :
-        server = RosSerialServer(tcp_portnum, fork_server)
-        rospy.loginfo("Waiting for socket connections on port %d" % tcp_portnum)
+    if len(sys.argv) == 4 :
+        port_name  = sys.argv[1]
+        tcp_serv = sys.argv[2]
+        tcp_portnum = int(sys.argv[3])
+    '''
+    if port_name == "tcp":# and (tcp_serv == "localhost" or "127.0.0" in tcp_serv):
+        server = RosSerialServer(tcp_portnum, fork_server,serv_address = tcp_serv)
+        rospy.loginfo("(%s) Waiting for socket connections on port %d" % (tcp_serv,tcp_portnum))
         try:
             server.listen()
         except KeyboardInterrupt:
             rospy.loginfo("got keyboard interrupt")
+	except socket.error, exc:
+		rospy.logerr("Caught exception socket.error : %s" % exc)
         finally:
             rospy.loginfo("Shutting down")
             for process in multiprocessing.active_children():
                 rospy.loginfo("Shutting down process %r", process)
                 process.terminate()
                 process.join()
-            rospy.loginfo("All done")
-
+            rospy.loginfo("All done")	
     else :          # Use serial port 
         rospy.loginfo("Connecting to %s at %d baud" % (port_name,baud) )
         client = SerialClient(port_name, baud)

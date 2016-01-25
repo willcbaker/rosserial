@@ -220,37 +220,46 @@ class RosSerialServer:
         for additional connections. Each forked process is a new ros node, and proxies ros
         operations (e.g. publish/subscribe) from its connection to the rest of ros.
     """
-    def __init__(self, tcp_portnum, fork_server=False):
+    def __init__(self, tcp_portnum, fork_server=False, serv_address = "localhost"):
         print "Fork_server is: ", fork_server
         self.tcp_portnum = tcp_portnum
         self.fork_server = fork_server
+        self.serv_address = serv_address
 
     def listen(self):
-        self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #bind the socket to a public host, and a well-known port
-        self.serversocket.bind(("", self.tcp_portnum)) #become a server socket
-        self.serversocket.listen(1)
+    	
+	self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    	if self.serv_address == "localhost" or "127.0.0" in self.serv_address:
+		#bind the socket to a public host, and a well-known port
+		self.serversocket.bind(("", self.tcp_portnum)) #become a server socket
+		self.serversocket.listen(1)
 
-        while True:
-            #accept connections
-            print "waiting for socket connection"
-            (clientsocket, address) = self.serversocket.accept()
+		while True:
+		    #accept connections
+		    print "waiting for socket connection"
+		    (clientsocket, address) = self.serversocket.accept()
 
-            #now do something with the clientsocket
-            rospy.loginfo("Established a socket connection from %s on port %s" % (address))
-            self.socket = clientsocket
-            self.isConnected = True
+		    #now do something with the clientsocket
+		    rospy.loginfo("Established a socket connection from %s on port %s" % (address))
+		    self.socket = clientsocket
+		    self.isConnected = True
 
-            if (self.fork_server == True):	# if configured to launch server in a separate process
-                rospy.loginfo("Forking a socket server process")
-                process = multiprocessing.Process(target=self.startSocketServer, args=(address))
-                process.daemon = True
-                process.start()
-                rospy.loginfo("launched startSocketServer")
-            else:
-                rospy.loginfo("calling startSerialClient")
-                self.startSerialClient()
-                rospy.loginfo("startSerialClient() exited")
+		    if (self.fork_server == True):	# if configured to launch server in a separate process
+		        rospy.loginfo("Forking a socket server process")
+		        process = multiprocessing.Process(target=self.startSocketServer, args=(address))
+		        process.daemon = True
+		        process.start()
+		        rospy.loginfo("launched startSocketServer")
+		    else:
+		        rospy.loginfo("calling startSerialClient")
+		        self.startSerialClient()
+		        rospy.loginfo("startSerialClient() exited")
+    	else:
+        	rospy.loginfo("Attempting socket connections to %s:%d" % (self.serv_address,self.tcp_portnum))
+    		self.serversocket.connect((self.serv_address,self.tcp_portnum))
+		self.socket = self.serversocket
+		self.isConnected = True
+		self.startSerialClient()
 
     def startSerialClient(self):
         client = SerialClient(self)
@@ -341,6 +350,7 @@ class SerialClient:
         elif hasattr(port, 'read'):
             #assume its a filelike object
             self.port=port
+            #elif port == 'tcp
         else:
             # open a specific port
             try:
